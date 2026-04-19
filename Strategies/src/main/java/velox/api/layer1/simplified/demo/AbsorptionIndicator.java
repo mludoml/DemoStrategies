@@ -352,12 +352,33 @@ public class AbsorptionIndicator implements
         }
 
         // --- Render ---
-        // Image layout for both sides: dot at TOP (at price level), dotted line, label at bottom.
-        // addIcon places the image's top-left at (price + iconY) in screen coords (Y increases downward).
-        // We shift up by dotR so the dot center lands exactly at the absorption price.
+        // Buyers layout:  dot (top/price) → line → label (below price)
+        // Sellers layout: label (above price) → line → dot (bottom/price)
+        //
+        // addIcon(price, icon, iconX, iconY): the pixel (iconX, iconY) inside the image
+        // is pinned to the (bar, price) position on the chart — same convention as demo
+        // LastTradeDemoIconsNoHistory which passes the arrow-tip pixel coordinates.
         BufferedImage icon = renderMark(volume, isPassiveBuyer);
-        int iconX = -icon.getWidth() / 2;
-        int iconY = -(settings.dotsSize / 2); // center dot on price
+
+        // Reconstruct label/offset dimensions to locate dot center pixel in the image.
+        String volText2 = settings.showVolume ? formatVolume(volume) : "";
+        int dotSz2  = settings.showDots  ? settings.dotsSize : 0;
+        int padV2   = 3;
+        int labelH2 = settings.showIcons ? labelFM.getHeight() + padV2 * 2 : 0;
+        int offset2 = (settings.showIcons && settings.showDots) ? settings.iconsOffset : 0;
+
+        // iconX: horizontal center of image
+        int iconX = icon.getWidth() / 2;
+
+        // iconY: Y pixel inside the image where the dot center sits (= absorption price)
+        int iconY;
+        if (isPassiveBuyer) {
+            // Dot at image top; dot center = dotSz/2 from image top
+            iconY = dotSz2 / 2;
+        } else {
+            // Dot at image bottom; dot center = labelH + offset + dotSz/2 from image top
+            iconY = labelH2 + offset2 + dotSz2 / 2;
+        }
 
         indicator.addIcon(price, icon, iconX, iconY);
     }
@@ -388,29 +409,23 @@ public class AbsorptionIndicator implements
 
         int cx = imgW / 2;
 
-        // Same layout for passive buyers AND sellers:
-        // dot at top (maps to absorption price), dotted line down, label at bottom.
-        // Color alone distinguishes buyer (green) from seller (magenta).
-        {
+        if (isPassiveBuyer) {
+            // Buyers layout: dot (top/price) → line → label (below price)
             int y = 0;
-            // 1) Dot at top — this is the trade dot at the exact absorption price
             if (settings.showDots) {
                 g.setColor(iconColor);
                 drawDot(g, cx - dotSz / 2, y, dotSz);
                 y += dotSz;
             }
-            // 2) Dotted offset line
             if (settings.showDots && settings.showIcons && offset > 0) {
                 drawDottedLine(g, cx, y, cx, y + offset, iconColor);
                 y += offset;
             }
-            // 3) Volume label
             if (settings.showIcons) {
                 drawLabel(g, cx, y, labelW, labelH, volText, textW, padV, bgColor, iconColor, textColor);
             }
-        }
-        if (false) {
-            // Dead code block — kept to preserve structure for future seller-above layout
+        } else {
+            // Sellers layout: label (above price) → line → dot (bottom/price)
             int y = 0;
             if (settings.showIcons) {
                 drawLabel(g, cx, y, labelW, labelH, volText, textW, padV, bgColor, iconColor, textColor);
@@ -420,7 +435,6 @@ public class AbsorptionIndicator implements
                 drawDottedLine(g, cx, y, cx, y + offset, iconColor);
                 y += offset;
             }
-            // 3) Dot at bottom
             if (settings.showDots) {
                 g.setColor(iconColor);
                 drawDot(g, cx - dotSz / 2, y, dotSz);
